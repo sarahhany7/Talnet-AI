@@ -5,44 +5,97 @@ include 'header.php';
 require 'config.php';
 if (!isLoggedIn() || $_SESSION['role'] != 'seeker') redirect('login.php');
 
-$jobsStmt = $pdo->query("SELECT j.*, c.company_name FROM jobs j JOIN companies c ON j.company_id = c.id WHERE j.status = 'active' ORDER BY j.created_at DESC");
-$jobs = $jobsStmt->fetchAll();
+$userId = $_SESSION['user_id'];
+
+// ✅ Handle Profile Update
+$message = "";
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    
+    if (isset($_POST['update_profile'])) {
+        // تحديث المهارات
+        $skills = $_POST['skills'];
+        $bio = $_POST['bio'];
+        $title = $_POST['title'];
+        
+        $stmt = $pdo->prepare("UPDATE job_seekers SET title = ?, skills = ?, bio = ? WHERE user_id = ?");
+        $stmt->execute([$title, $skills, $bio, $userId]);
+        $message = "✅ Profile updated!";
+    }
+    
+    if (isset($_FILES['cv']) && $_FILES['cv']['name']) {
+        // رفع الـ CV
+        require 'cv_parser.php';
+        $upload = uploadCV($_FILES['cv'], $userId);
+        
+        if (isset($upload['success'])) {
+            $stmt = $pdo->prepare("UPDATE job_seekers SET cv_path = ? WHERE user_id = ?");
+            $stmt->execute([$upload['path'], $userId]);
+            $message = "✅ CV uploaded!";
+        } else {
+            $message = "❌ " . $upload['error'];
+        }
+    }
+}
+
+// جلب الـ Profile
+$stmt = $pdo->prepare("SELECT * FROM job_seekers WHERE user_id = ?");
+$stmt->execute([$userId]);
+$profile = $stmt->fetch();
+
+// جلب الوظائف
+$jobs = $pdo->query("SELECT j.*, c.company_name FROM jobs j JOIN companies c ON j.company_id = c.id WHERE j.status = 'active' ORDER BY j.created_at DESC")->fetchAll();
 ?>
 
-<h1>Find Your Dream Job</h1>
+<h1>My Profile</h1>
 
-<div class="glass-panel" style="margin-bottom: 30px; display: flex; gap: 15px;">
-    <input type="text" class="glass-input" placeholder="Search jobs..." style="margin-bottom: 0;">
-    <button class="glass-btn"><i class="fas fa-search"></i></button>
+<!-- Profile Form -->
+<div class="glass-panel" style="max-width: 800px; margin-bottom: 40px;">
+    <form method="POST" enctype="multipart/form-data">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <label style="color: var(--text-muted);">Job Title</label>
+                <input type="text" name="title" class="glass-input" value="<?= htmlspecialchars($profile['title'] ?? '') ?>" placeholder="e.g. Full Stack Developer" required>
+            </div>
+            <div>
+                <label style="color: var(--text-muted);">Upload CV (PDF)</label>
+                <input type="file" name="cv" class="glass-input" accept=".pdf,.doc,.docx">
+            </div>
+        </div>
+        
+        <label style="color: var(--text-muted); display: block; margin-top: 15px;">Skills (comma separated)</label>
+        <input type="text" name="skills" class="glass-input" value="<?= htmlspecialchars($profile['skills'] ?? '') ?>" placeholder="PHP, JavaScript, MySQL, Laravel, React">
+        
+        <label style="color: var(--text-muted); display: block; margin-top: 15px;">Bio</label>
+        <textarea name="bio" class="glass-input" rows="3" placeholder="Tell us about yourself..."><?= htmlspecialchars($profile['bio'] ?? '') ?></textarea>
+        
+        <button type="submit" name="update_profile" class="glass-btn" style="width: auto; margin-top: 20px;">Save Profile</button>
+        
+        <?php if($message): ?>
+            <span style="margin-left: 20px; color: var(--cyan);"><?= $message ?></span>
+        <?php endif; ?>
+    </form>
 </div>
 
+<h1>Browse Jobs</h1>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px;">
-    <?php if(count($jobs) == 0): ?>
-    <div class="glass-panel">No jobs available right now.</div>
-    <?php else: ?>
     <?php foreach($jobs as $job): ?>
     <div class="glass-panel">
         <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-            <h3 style="color: var(--text-main); margin: 0;"><?= htmlspecialchars($job['title']) ?></h3>
+            <h3><?= htmlspecialchars($job['title']) ?></h3>
             <span style="background: rgba(6, 182, 212, 0.2); color: var(--cyan); padding: 5px 12px; border-radius: 20px; font-size: 0.8rem;">Active</span>
         </div>
         <div style="color: var(--secondary); font-weight: bold; margin-bottom: 10px;">
             <i class="fas fa-building"></i> <?= htmlspecialchars($job['company_name']) ?>
         </div>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px; line-height: 1.5;">
-            <?= substr(htmlspecialchars($job['description']), 0, 100) ?>...
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
+            <?= substr(htmlspecialchars($job['description']), 0, 80) ?>...
         </p>
-        <div style="display: flex; gap: 10px;">
-            <a href="job_details.php?id=<?= $job['id'] ?>" class="glass-btn" style="font-size: 0.85rem; padding: 10px 20px;">View</a>
-            <button class="glass-btn" style="background: transparent; border: 1px solid var(--glass-border);">
-                <i class="far fa-heart"></i>
-            </button>
-        </div>
+        <a href="job_details.php?id=<?= $job['id'] ?>" class="glass-btn" style="font-size: 0.85rem; padding: 10px 20px;">View & Apply</a>
     </div>
     <?php endforeach; ?>
-    <?php endif; ?>
 </div>
+
 </main>
 </div>
 </body>
