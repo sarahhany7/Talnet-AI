@@ -7,12 +7,11 @@ if (!isLoggedIn() || $_SESSION['role'] != 'seeker') redirect('login.php');
 
 $userId = $_SESSION['user_id'];
 
-// ✅ Handle Profile Update
 $message = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (isset($_POST['update_profile'])) {
-        // تحديث المهارات
+        
         $skills = $_POST['skills'];
         $bio = $_POST['bio'];
         $title = $_POST['title'];
@@ -23,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     if (isset($_FILES['cv']) && $_FILES['cv']['name']) {
-        // رفع الـ CV
+        
         require 'cv_parser.php';
         $upload = uploadCV($_FILES['cv'], $userId);
         
@@ -37,12 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// جلب الـ Profile
 $stmt = $pdo->prepare("SELECT * FROM job_seekers WHERE user_id = ?");
 $stmt->execute([$userId]);
 $profile = $stmt->fetch();
 
-// جلب الوظائف
+
 $jobs = $pdo->query("SELECT j.*, c.company_name FROM jobs j JOIN companies c ON j.company_id = c.id WHERE j.status = 'active' ORDER BY j.created_at DESC")->fetchAll();
 ?>
 
